@@ -1,0 +1,38 @@
+#!/bin/bash
+# prettycaml: post-process the output of 'ocamlc' or 'ocamlbuild' to add
+# colouring, print out relevant lines from the source code, and indicate the
+# exact position of errors on said lines.
+# Usage: no arguments; reads from stdin and prints to stdout.
+# Example: make |& prettycaml
+
+# Note: this script is very basic and quite imperfect
+
+set -eu
+
+bold() { printf '\033[37m%s\033[0m' "$*"; }
+
+sed $'s/^\(Warning [0-9]\+:\|Error:\| \).*$/\033[33m&\033[0m/' |
+while read -r line; do
+    if [[ "$line" =~ ^File\ \"([^\"]+)\",\ line\ ([0-9]+),\ characters\ ([0-9]+)-([0-9]+):$ ]]; then
+        f=${BASH_REMATCH[1]}
+        l=${BASH_REMATCH[2]}
+        cs=${BASH_REMATCH[3]}
+        ce=${BASH_REMATCH[4]}
+
+        source=$(tail -n+$l "$f" | head -n1)
+
+        printf $'File "%s", line %s, characters %s-%s:\n' \
+            "$(bold "$f")" "$(bold "$l")" "$(bold "$cs")" "$(bold "$ce")"
+
+        echo -en '\033[31m'
+        printf '%s\n' "$source"
+
+        for ((i = 0; i < cs; i++)); do printf ' '; done
+        echo -en '\033[32;1m'
+        for ((; i < ce; i++)); do printf '^'; done
+        echo -en '\033[0m'
+        echo
+    else
+        printf '%s\n' "$line"
+    fi
+done
